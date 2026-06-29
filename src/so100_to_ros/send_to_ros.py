@@ -20,16 +20,53 @@ except Exception as exc:
 else:
     _GRIPPER_IMPORT_ERROR = None
 
+
+# ---------------------------------------------------------------------------
+# Safety workspace bounding box (in the ROBOT base frame, i.e. AFTER scaling).
+#
+# Any commanded position outside this box is clamped back onto the box surface
+# before being sent to the robot. Tune these to your actual Panda mounting and
+# reachable workspace -- the defaults below are conservative placeholders, NOT
+# validated for your cell. Keep them well inside the ~0.855 m Panda reach and
+# away from the table / base singularity.
+#
+#                  x_min  y_min  z_min
+WORKSPACE_MIN = np.array([0.25, -0.40, 0.25], dtype=float)
+#                  x_max  y_max  z_max
+WORKSPACE_MAX = np.array([0.65,  0.40, 0.70], dtype=float)
+# ---------------------------------------------------------------------------
+
+
+def clip_to_bounds(position, lo=WORKSPACE_MIN, hi=WORKSPACE_MAX, eps=1e-9):
+    """Clip a 3D position into [lo, hi] per axis.
+
+    Returns (clipped_position, was_clipped, clipped_axes) so the caller can
+    warn when a command had to be clamped.
+    """
+    clipped = np.clip(position, lo, hi)
+    # Which axes actually moved (beyond float noise)?
+    delta = np.abs(clipped - position)
+    clipped_axes = [ax for ax, d in zip("xyz", delta) if d > eps]
+    was_clipped = len(clipped_axes) > 0
+    return clipped, was_clipped, clipped_axes
+
+
 # Retrieve position through ZMQ and send commands to robot using crisp_py
 def main():
+    # Sanity check the box itself so a bad edit can't silently invert an axis.
+    if np.any(WORKSPACE_MIN >= WORKSPACE_MAX):
+        raise ValueError(
+            f"Invalid WORKSPACE bounds: MIN {WORKSPACE_MIN} must be < MAX {WORKSPACE_MAX} on every axis"
+        )
+
     # Initialize CRISP robot and gripper
     if make_robot is None:
         raise RuntimeError(f"Could not import crisp_py.robot.make_robot: {_ROBOT_IMPORT_ERROR}")
-    
+
     robot = make_robot("panda")
     if hasattr(robot, "wait_until_ready"):
         robot.wait_until_ready()
-    
+
     gripper = None
     if make_gripper is not None:
         gripper = make_gripper("gripper_franka")
@@ -38,12 +75,19 @@ def main():
     else:
         print(f"[send_to_ros] Could not import crisp_py.gripper: {_GRIPPER_IMPORT_ERROR}")
 
+    print(
+        f"[send_to_ros] Safety box active: "
+        f"x[{WORKSPACE_MIN[0]:.3f}, {WORKSPACE_MAX[0]:.3f}] "
+        f"y[{WORKSPACE_MIN[1]:.3f}, {WORKSPACE_MAX[1]:.3f}] "
+        f"z[{WORKSPACE_MIN[2]:.3f}, {WORKSPACE_MAX[2]:.3f}]"
+    )
+
     # ZMQ setup to receive pose commands from teleoperate.py
     context = zmq.Context()
     socket = context.socket(zmq.PAIR)
     socket.setsockopt(zmq.LINGER, 0)
     socket.connect("ipc:///tmp/test.sock")
-    
+
     # Used to match so-100 leader range to Franka Panda range
     scale_ratio = 1.8
     prev_gripper = None
@@ -56,32 +100,40 @@ def main():
 
             # dict_keys(['ee.x', 'ee.y', 'ee.z', 'ee.wx', 'ee.wy', 'ee.wz', 'ee.qx', 'ee.qy', 'ee.qz', 'ee.qw'])
             data = json.loads(msg)
-            
+
             # Extract position and scale
             position = np.array([
                 data["ee.x"] * scale_ratio,
                 data["ee.y"] * scale_ratio,
                 data["ee.z"] * scale_ratio
             ], dtype=float)
-            
+
+            # Safety clip: clamp the (scaled) target into the workspace box.
+            position, was_clipped, clipped_axes = clip_to_bounds(position)
+            if was_clipped:
+                print(
+                    f"[send_to_ros] WARNING: command clipped on {','.join(clipped_axes)} "
+                    f"-> {np.round(position, 4).tolist()}"
+                )
+
             # Send move command to robot
             try:
                 robot.move_to(position=position, speed=0.2)
             except Exception as e:
                 print(f"[send_to_ros] move_to failed: {e}")
-            
+
             # Handle gripper if data is available
             if "ee.gripper_pos" in data and gripper is not None:
                 gripper_pos = data["ee.gripper_pos"]
-                
+
                 if prev_gripper is None:
                     prev_gripper = gripper_pos
-                
+
                 # Check if gripper command changed significantly
                 if abs(prev_gripper - gripper_pos) > 5:
                     # Normalize gripper_pos from (-100, 100) or (0, 100) range to (0, 1)
                     normalized_width = np.clip((gripper_pos + 100) / 200, 0.0, 1.0)
-                    
+
                     if normalized_width > gripper_close_threshold:
                         try:
                             print(f"[send_to_ros] Opening gripper")
@@ -94,7 +146,7 @@ def main():
                             gripper.close()
                         except Exception as e:
                             print(f"[send_to_ros] gripper.close() failed: {e}")
-                    
+
                     prev_gripper = gripper_pos
 
             debug = {
@@ -105,13 +157,14 @@ def main():
                 "gripper": data.get("ee.gripper_pos", 0) / 100.0
             }
             print(f"[send_to_ros] Received command: {debug}")
-            
+
         except zmq.Again:
             pass
         except Exception as e:
             print(f"[send_to_ros] Error: {e}")
-        
+
         time.sleep(0.01)  # Control loop frequency
+
 
 if __name__ == "__main__":
     main()
