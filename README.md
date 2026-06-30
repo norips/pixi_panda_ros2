@@ -1,11 +1,12 @@
 # pixi_panda_ros2
 
-ROS2 Jazzy environment for Franka Panda robot using [pixi](https://prefix.dev/docs/pixi/overview).
+ROS2 Jazzy environment for Franka Panda robot using [pixi](https://prefix.dev/docs/pixi/overview) along with lerobot environment to control Franka Panda using SO-ARM100.
 
 Features:
 - **Single robot focus** - streamlined for real robot operation
 - **CRISP Controllers** - cartesian/joint impedance controllers from [crisp_controllers](https://github.com/utiasDSL/crisp_controllers)
 - **pixi package management** - reproducible environment with robostack
+- **lerobot teleoperate** - teleoperate Franka Panda using SO-ARM100
 
 ## Prerequisites
 
@@ -16,16 +17,49 @@ curl -fsSL https://pixi.sh/install.sh | bash
 
 ## Quick Start
 
+This project is based on 3 components:
+- Franka controller using ROS
+- SO-ARM100 using lerobot
+- Bridge lerobot ROS
+
+First clone the repo:
+
 ```bash
 # Clone with submodules
 git clone --recurse-submodules https://github.com/lvjonok/pixi_panda_ros2.git
 cd pixi_panda_ros2
+```
 
+Then enable Frnaka Panda FCI through the web interface.
+
+### Franka controller using ROS
+
+Enable Franka Panda control through ROS using CRISP.
+
+```bash
 # Setup: install dependencies, clone CRISP, and build
 pixi run -e jazzy setup
 
 # Launch the robot
-pixi run -e jazzy franka robot_ip:=192.168.1.100
+pixi run -e jazzy franka robot_ip:=192.168.8.2
+```
+
+### SO-ARM100 using lerobot
+
+Read SO-ARM100 end effector position and send it to the bridge
+
+```bash
+# Launch the SO-ARM100
+pixi run -e lerobot teleoperate --port /dev/ttyACM0
+```
+
+###  Bridge lerobot ROS
+
+Read SO-ARM100 end effector position and send it to the bridge
+
+```bash
+# Launch the SO-ARM100
+pixi run -e jazzy send
 ```
 
 ## Available Commands
@@ -35,6 +69,7 @@ pixi run -e jazzy franka robot_ip:=192.168.1.100
 | `pixi run -e jazzy setup` | Full setup: submodules, clone CRISP, build |
 | `pixi run -e jazzy build` | Build packages with colcon |
 | `pixi run -e jazzy franka robot_ip:=<IP>` | Launch the Franka robot |
+| `pixi run -e jazzy rviz robot_ip:=<IP>` | Launch the Franka robot with rviz GUI |
 
 ## Launch Arguments
 

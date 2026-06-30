@@ -62,10 +62,6 @@ crisp-python = ">=3.0.0,<4"
 
 [feature.lerobot.tasks]
 teleoperate = "python src/so100_to_ros/teleoperate.py"
-run = { depends-on = [
-    { task = "teleoperate", environment = "lerobot" },
-    { task = "send", environment = "jazzy" },
-] }
 
 [feature.lerobot.dependencies]
 evdev = ">=1.9.2,<2"
