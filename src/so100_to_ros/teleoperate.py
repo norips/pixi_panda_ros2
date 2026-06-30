@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import time
+import argparse
 
 from pathlib import Path
 
@@ -42,8 +43,16 @@ FPS = 60
 # Retrieve SO-ARM100 EE position & orientation through LeRobot library and send them over ZMQ as LeRobot is not compatible with python version shipped with ROS1 noetic.
 # See "send_to_ros.py" that receive this information and send it back as ros topic
 def main():
+    parser = argparse.ArgumentParser(description="SO100 teleoperation publisher")
+    parser.add_argument(
+        "--port",
+        default="/dev/ttyACM0",
+        help="Serial port for the SO100 leader arm (default: /dev/ttyACM0)",
+    )
+    args = parser.parse_args()
+
     # Initialize the robot and teleoperator config
-    leader_config = SO100LeaderConfig(port="/dev/ttyACM0", id="my_awesome_leader_arm", calibration_dir=Path(__file__).parent / "calibration_so100_leader")
+    leader_config = SO100LeaderConfig(port=args.port, id="my_awesome_leader_arm", calibration_dir=Path(__file__).parent / "calibration_so100_leader")
 
     # Initialize the robot and teleoperator
     leader = SO100Leader(leader_config)
@@ -92,7 +101,7 @@ def main():
 
     # Used to send data to python 3.8 ROS process
     context = zmq.Context()
-    socket = context.socket(zmq.PAIR)
+    socket = context.socket(zmq.PUB)
     socket.bind("ipc:///tmp/test.sock")
 
     # create 90° rotation about Z
@@ -108,62 +117,18 @@ def main():
         # teleop joints -> teleop EE action
         leader_ee_act = leader_to_ee(leader_joints_obs)
 
-        leader_wrist_act = leader_to_wrist(leader_joints_obs)
-
-
-        # Convert wrist roll to angle (-100, 100)
-        angle_wrist = (leader_joints_obs["wrist_roll.pos"] + 100) / 200 * 360 - 180
-        # x_angle = 0 + math.radians(180)
-        # y_angle = 0 
-        # z_angle = 0 + math.radians(angle_wrist)
-        pos = np.array([leader_ee_act["ee.x"], leader_ee_act["ee.y"], leader_ee_act["ee.z"]])          # example position
-        pos_rotated = rot_z90.apply(pos)
-        leader_ee_act["ee.x"] = pos_rotated[0]
-        leader_ee_act["ee.y"] = pos_rotated[1]
-        leader_ee_act["ee.z"] = pos_rotated[2]
-
-        x_angle = leader_ee_act["ee.wx"]
-        y_angle = leader_ee_act["ee.wy"] - math.radians(10)
-        z_angle = leader_ee_act["ee.wz"]
-        # x_angle = leader_wrist_act["ee.wx"]
-        # y_angle = leader_wrist_act["ee.wy"]
-        # z_angle = leader_wrist_act["ee.wz"]
-
-
-        # Create a Rotation object from Euler angles in 'xyz' sequence
-        # Use degrees=True if your angles are in degrees, False if in radians
-        rot = Rotation.from_euler('zyx', [x_angle, y_angle, z_angle], degrees=False)
-
-        # Convert the Rotation object to a quaternion
-        # The result is a numpy array [x, y, z, w]
+        rot = Rotation.from_rotvec([leader_ee_act["ee.wx"], leader_ee_act["ee.wy"], leader_ee_act["ee.wz"]])
         quat = rot.as_quat()
-
-        
-        r_old = Rotation.from_quat(quat)
-        r_new_global = rot_z90 * r_old
-        quat = r_new_global.as_quat()  # [x,y,z,w]
-
         leader_ee_act["ee.qx"] = quat[0]
         leader_ee_act["ee.qy"] = quat[1]
         leader_ee_act["ee.qz"] = quat[2]
         leader_ee_act["ee.qw"] = quat[3]
 
-
-        # quat = rot.as_quat()
-
-        # leader_wrist_act["ee.qx"] = quat[0]
-        # leader_wrist_act["ee.qy"] = quat[1]
-        # leader_wrist_act["ee.qz"] = quat[2]
-        # leader_wrist_act["ee.qw"] = quat[3]
-
-        # leader_ee_act["ee.qx"] = 1
-        # leader_ee_act["ee.qy"] = -3.342687705298886e-05
-        # leader_ee_act["ee.qz"] = 0.0002046426379820332
-        # leader_ee_act["ee.qw"] = 7.346553502429742e-06
-
         socket.send_string(json.dumps(leader_ee_act))
+        print("Sending data", leader_ee_act)
 
         precise_sleep(max(1.0 / FPS - (time.perf_counter() - t0), 0.0))
+
 
 if __name__ == "__main__":
     main()
