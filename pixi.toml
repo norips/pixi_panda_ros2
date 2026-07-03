@@ -25,7 +25,7 @@ lerobot = { features = ["lerobot"], no-default-feature = true }
 
 # ROS2 Jazzy Feature
 [feature.jazzy]
-channels = ["https://prefix.dev/robostack-jazzy"]
+channels = ["https://prefix.dev/robostack-jazzy", "conda-forge"]
 
 [feature.jazzy.dependencies]
 colcon-common-extensions = "*"
@@ -42,6 +42,9 @@ rosdep = "*"
 ros-jazzy-topic-tools = ">=1.3.3,<2"
 ros-jazzy-topic-tools-interfaces = ">=1.3.3,<2"
 pyzmq = ">=27.0.0,<28"
+librealsense = {version = "*", channel = "conda-forge"}
+numpy = "<=2.3"
+
 
 [feature.jazzy.tasks]
 update-submodules = "git submodule update --init --recursive"
