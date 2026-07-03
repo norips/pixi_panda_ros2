@@ -1,0 +1,54 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+
+  - Class: rviz_common/Views
+    Name: Views
+
+Visualization Manager:
+  Global Options:
+    Fixed Frame: panda_link0
+    Background Color: 48;48;48
+
+  Displays:
+
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Plane Cell Count: 20
+      Cell Size: 0.1
+
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Axes: true
+      Show Names: false
+
+    - Class: rviz_default_plugins/RobotModel
+      Name: Robot
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+
+    - Class: rviz_default_plugins/Image
+      Name: Wrist RGB
+      Enabled: true
+      Image Topic:
+        Value: /camera/gripper/color/image_raw
+
+    - Class: rviz_default_plugins/Image
+      Name: Wrist Depth
+      Enabled: false
+      Image Topic:
+        Value: /camera/gripper/depth/image_rect_raw
+
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 1.2
+      Pitch: 0.6
+      Yaw: 1.4
+      Focal Point:
+        X: 0.45
+        Y: 0.0
+        Z: 0.35
