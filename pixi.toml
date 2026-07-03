@@ -42,8 +42,16 @@ rosdep = "*"
 ros-jazzy-topic-tools = ">=1.3.3,<2"
 ros-jazzy-topic-tools-interfaces = ">=1.3.3,<2"
 pyzmq = ">=27.0.0,<28"
+
+#realsense-ros
 librealsense = {version = "*", channel = "conda-forge"}
 numpy = "<=2.3"
+
+#audio dependencies
+portaudio = ">=19.7.0,<20"
+gstreamer = ">=1.26.11,<2"
+gst-plugins-base = ">=1.26.11,<2"
+gst-plugins-good = ">=1.26.11,<2"
 
 
 [feature.jazzy.tasks]
@@ -56,6 +64,7 @@ send = "python src/so100_to_ros/send_to_ros.py"
 
 [feature.jazzy.pypi-dependencies]
 crisp-python = ">=3.6.0, <4"
+sounddevice = ">=0.5.5, <0.6"
 
 # Development tools
 [feature.dev.pypi-dependencies]
